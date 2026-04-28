@@ -1,0 +1,1003 @@
+---
+title: "Paper JAE"
+author: "Jerico Fiestas Flores"
+date: "2026-04-25"
+output: html_document
+---
+
+## Loading packages and data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(haven)
+library(table1)
+library(dplyr)
+library(gtsummary)
+library(openxlsx)
+library(WebPower)
+library(effsize)
+library(vcd)
+library(BayesFactor)
+library(ggplot2)
+library(car)
+library(tidyr)
+
+
+data = read_dta("total_session_data.dta")
+data = data[data$session>0,] ## Eliminate pilot session
+
+data <- mutate(data,
+  female = ifelse(sex==2,1,0),
+  employed = ifelse (work<3,1,0), 
+  volunteer = ifelse(volunteer==2,0,1),
+  treatment = as.factor(treatment),
+  bid = as.factor(bid),
+  hypo = ifelse(treatment==3,1,0),
+  conq = ifelse(treatment==2,1,0)
+  )
+
+
+table(data$work)
+
+```
+
+
+## Table 2: Data description Demographics
+
+```{r}
+
+# Create render function for table
+my_render <- function(x, ...) {
+  x <- as.numeric(x)
+  n <- sum(!is.na(x))
+  if (n == 0) return("")
+  m <- mean(x, na.rm = TRUE)
+  se <- sd(x, na.rm = TRUE) / sqrt(n)
+  sprintf("%.4f<br>(%.4f)", m, se)  
+}
+
+
+# Create the Table 1
+# Column 1
+t1_c1 = table1(~ female + year + employed + volunteer + eco_fin, 
+       data = data, 
+       render = my_render,
+       extra.cols = NULL) 
+
+# Column 2-7
+t1_c2_7 = table1(~ female + year + employed + volunteer + eco_fin | bid+ treatment, 
+       data = data, 
+       render = my_render,
+       extra.cols = NULL) 
+
+print(t1_c1)
+print(t1_c2_7)
+
+
+```
+
+
+
+
+
+## Table 3: Vote Results
+
+```{r}
+
+results = table1(~ i_vote| bid+ treatment, 
+       data = data, 
+       render = my_render,
+       extra.cols = NULL)
+
+## PENDING: USE THE RESULTS FROM RESULTS TABLE FOR THE VALUES TO BE USED IN THE FOLLOWING FUNCTIONS
+
+## Study N range
+alpha_test <- 0.05 / 3 #Bonferroni test
+wp.t(n1 = NULL, d = 0.5, power = 0.8, type = "two.sample", alpha = alpha_test) # n= 85
+wp.t(n1 = NULL, d = 0.45, power = 0.8, type = "two.sample", alpha = alpha_test) # n=104
+wp.t(n1 = NULL, d = 0.34, power = 0.8, type = "two.sample", alpha = alpha_test) # n=182
+d_p = 0.35
+d_p2 = 0.5
+
+
+## Study power
+r = 115 # Real sample
+c = 109 # Consequential sample
+h = 119 # Hypothetical sample
+
+# For hyphotetical against real pooled
+wp.t(n1=r, n2=h, d=d_p, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c, n2=h, d=d_p, power=NULL, type='two.sample.2n') #Study power
+
+wp.t(n1=r, n2=h, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c, n2=h, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+
+# For hyphotetical against bid 3
+
+r1 = 61 # Real sample
+c1 = 52 # Consequential sample
+h1 = 60 # Hypothetical sample
+
+wp.t(n1=r1, n2=h1, d=d_p, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c1, n2=h1, d=d_p, power=NULL, type='two.sample.2n') #Study power
+
+wp.t(n1=r1, n2=h1, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c1, n2=h1, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+
+# For hyphotetical against bid 8
+r2 = 54 # Real sample
+c2 = 57 # Consequential sample
+h2 = 59 # Hypothetical sample
+
+wp.t(n1=r2, n2=h2, d=d_p, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c2, n2=h2, d=d_p, power=NULL, type='two.sample.2n') #Study power
+
+wp.t(n1=r2, n2=h2, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+wp.t(n1=c2, n2=h2, d=d_p2, power=NULL, type='two.sample.2n') #Study power
+
+
+#####################################
+## Effect size
+#####################################
+## Pooled
+
+R_vs_H <- subset(data, treatment %in% c(1, 3))
+R_vs_H$treatment <- droplevels(R_vs_H$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_H)
+
+R_vs_C <- subset(data, treatment %in% c(2, 3))
+R_vs_C$treatment <- droplevels(R_vs_C$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_C)
+
+## 3
+
+R_vs_H_3 <- subset(data, treatment %in% c(1, 3)& bid == 3)
+R_vs_H_3$treatment <- droplevels(R_vs_H_3$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_H_3)
+
+R_vs_C_3 <- subset(data, treatment %in% c(2, 3)& bid == 3)
+R_vs_C_3$treatment <- droplevels(R_vs_C_3$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_C_3)
+
+
+## 8
+
+R_vs_H_8 <- subset(data, treatment %in% c(1, 3)& bid == 8)
+R_vs_H_8$treatment <- droplevels(R_vs_H_8$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_H_8)
+
+R_vs_C_8 <- subset(data, treatment %in% c(2, 3)& bid == 8)
+R_vs_C_8$treatment <- droplevels(R_vs_C_8$treatment)
+cohen.d(i_vote ~ treatment, data = R_vs_C_8)
+
+
+######################
+## Chi2 test and Cramer V
+#####################
+
+## Pooled
+ct <- table(data$treatment, data$i_vote)
+ct
+chisq_result <- chisq.test(ct, correct = FALSE) 
+chisq_result
+assoc <- assocstats(ct)
+assoc$cramer   # Cramér's V
+
+## 3
+data3 <- subset(data, bid==3)
+ct3 <- table(data3$treatment, data3$i_vote)
+ct3
+chisq_result <- chisq.test(ct3, correct = FALSE)  
+chisq_result
+assoc <- assocstats(ct3)
+assoc$cramer   # Cramér's V
+
+
+## 8
+data8 <- subset(data, bid==8)
+ct8 <- table(data8$treatment, data8$i_vote)
+ct8
+chisq_result <- chisq.test(ct8, correct = FALSE)  
+chisq_result
+assoc <- assocstats(ct8)
+assoc$cramer   # Cramér's V
+
+
+#####################################
+## Sample power (Actual power)
+#####################################
+
+# Pooled
+dr1=(0.8348-0.7815)/0.5
+dr2=(0.7982-0.7815)/0.5
+
+wp.t(n1=r, n2=h, d=dr1, power=NULL, type='two.sample.2n') #current
+wp.t(n1=c, n2=h, d=dr2, power=NULL, type='two.sample.2n') #current
+
+# For bid 3
+
+# For hyphotetical against bid 3
+
+dr1=(0.7541-0.70)/0.5
+dr2=(0.6538-0.70)/0.5
+
+wp.t(n1=r1, n2=h1, d=dr1, power=NULL, type='two.sample.2n') #current
+wp.t(n1=c1, n2=h1, d=dr2, power=NULL, type='two.sample.2n') #current
+
+#For bid 8
+
+dr1=(0.9259-0.8644)/0.5
+dr2=(0.9298-0.8644)/0.5
+
+wp.t(n1=r2, n2=h2, d=dr1, power=NULL, type='two.sample.2n') #current
+wp.t(n1=c2, n2=h2, d=dr2, power=NULL, type='two.sample.2n') #current
+
+
+```
+
+## Table 4: Compensation effect
+
+```{r}
+model_1 <- model_1 <- glm(i_vote ~ bid + day_time, 
+               data = data, 
+               family = binomial(link = "logit"))
+summary(model_1)
+AIC(model_1)
+BIC(model_1)
+log_lik <- as.numeric(logLik(model_1))
+
+
+model_2 <- glm(i_vote ~ bid+day_time+ female+year+employed+eco_fin+volunteer, data = data, family = "binomial")
+summary(model_2)
+AIC(model_2)
+BIC(model_2)
+logLik(model_2)
+
+
+model_3 <- glm(i_vote ~ bid+day_time+ female+year+employed+eco_fin+volunteer+busy+useful, data = data, family = "binomial")
+summary(model_3)
+AIC(model_3)
+BIC(model_3)
+logLik(model_3)
+
+
+
+```
+
+## Table 5: Treatment effect
+
+
+
+## Table 6: Average certainty level by compensation and treatment
+
+```{r}
+
+# Create render function for table
+my_render <- function(x, ...) {
+  x <- as.numeric(x)
+  n <- sum(!is.na(x))
+  if (n == 0) return("")
+  m <- mean(x, na.rm = TRUE)
+  se <- sd(x, na.rm = TRUE) / sqrt(n)
+  sprintf("%.3f<br>(%.4f)", m, se)  
+}
+
+
+table1(~ cert | bid, 
+       data = data, 
+       render = my_render,
+       extra.cols = TRUE) 
+
+
+tcert = table1(~ cert | bid+ treatment, 
+       data = data, 
+       render = my_render,
+       extra.cols = TRUE) 
+
+print(tcert)
+
+
+### Pairwise inside each group
+  pairwise_result <- pairwise.t.test(
+    x = data$cert,
+    g = data$treatment,
+    p.adjust.method = "bonferroni",
+    pool.sd = FALSE  ) # Welch approximation
+
+
+# Function to perform pairwise t‑tests with Bonferroni for a given bid
+compare_within_bid <- function(data, bid_value) {
+  subset_data <- subset(data, bid == bid_value)
+  # Pairwise t‑tests (Welch approximation, no pooling)
+  pairwise_result <- pairwise.t.test(
+    x = subset_data$cert,
+    g = subset_data$treatment,
+    p.adjust.method = "bonferroni",
+    pool.sd = FALSE   # Welch approximation
+  )
+  print(paste("Bid =", bid_value))
+  print(pairwise_result)
+}
+
+# Run for bid = 3 and bid = 8
+compare_within_bid(data, 3)
+compare_within_bid(data, 8)
+
+
+# For each treatment, compare between groups
+treatments <- c(1, 2, 3)
+
+for (tr in treatments) {
+  cert_bid3 <- data$cert[data$treatment == tr & data$bid == 3]
+  cert_bid8 <- data$cert[data$treatment == tr & data$bid == 8]
+  
+  test_result <- t.test(cert_bid3, cert_bid8, var.equal = FALSE)  # Welch
+  cat("\nTreatment", tr, "\n")
+  print(test_result)
+}
+
+for (tr in treatments) {
+  cert_bid3 <- data$cert[data$treatment == tr & data$bid == 3]
+  cert_bid <- data$cert[data$treatment == tr ]
+  
+  test_result <- t.test(cert_bid3, cert_bid, var.equal = FALSE)  # Welch
+  cat("\nTreatment", tr, "\n")
+  print(test_result)
+}
+
+for (tr in treatments) {
+  cert_bid8 <- data$cert[data$treatment == tr & data$bid == 8]
+  cert_bid <- data$cert[data$treatment == tr ]
+  
+  test_result <- t.test(cert_bid8, cert_bid, var.equal = FALSE)  # Welch
+  cat("\nTreatment", tr, "\n")
+  print(test_result)
+}
+
+
+```
+
+
+## Graph 2: Certainty levels
+
+```{r}
+
+# Compute mean and standard error per treatment × bid
+summary_certt <- data %>%
+  group_by(treatment) %>%
+  summarise(
+    mean_cert = mean(cert, na.rm = TRUE),
+    se_cert = sd(cert, na.rm = TRUE) / sqrt(n()),
+    var_cert = var(cert, na.rm = TRUE),   # add variance
+    .groups = "drop"
+  )
+
+summary_cert <- data %>%
+  group_by(treatment, bid) %>%
+  summarise(
+    mean_cert = mean(cert, na.rm = TRUE),
+    se_cert = sd(cert, na.rm = TRUE) / sqrt(n()),
+    var_cert = var(cert, na.rm = TRUE),   # add variance
+    .groups = "drop"
+  )
+
+# Convert treatment and bid to factors for better labels
+data_g = data
+data_g$treatment <- factor(data_g$treatment, levels = c(1,2,3), 
+                         labels = c("Real", "Consequential", "Hypothetical"))
+data_g$bid <- factor(data_g$bid, levels = c(3,8), labels = c("$3", "$8"))
+
+# Compute mean certainty per treatment and bid
+mean_data <- data_g %>%
+  group_by(treatment, bid) %>%
+  summarise(mean_cert = mean(cert, na.rm = TRUE), .groups = "drop")
+
+# Plot with custom colors and no vertical grids
+ggplot(data_g, aes(x = cert, color = bid, fill = bid)) +
+  geom_density(alpha = 0.3) +
+  geom_vline(data = mean_data, aes(xintercept = mean_cert, color = bid),
+             linetype = "dashed", linewidth = 0.8) +
+  facet_wrap(~ treatment, ncol = 3) +
+  labs(x = "Certainty", y = "Density", color = "Bid", fill = "Bid") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.major.x = element_blank(),   # remove major vertical grid lines
+    panel.grid.minor.x = element_blank()    # remove minor vertical grid lines
+  ) +
+  # Choose your color palette (example: custom colors for $3 and $8)
+  scale_color_manual(values = c("$3" = "#E69F00", "$8" = "#56B4E9")) +
+  scale_fill_manual(values = c("$3" = "#E69F00", "$8" = "#56B4E9"))
+
+# Save the plot
+ggsave("density_treatment_bid_with_means.png", width = 10, height = 4, dpi = 300)
+
+
+## Group variance test
+
+# Ensure treatment and bid are factors
+data$treatment <- factor(data$treatment)
+data$bid <- factor(data$bid)
+
+# Create a combined group variable
+data$group <- interaction(data$treatment, data$bid)
+
+# Levene's test (median-based, robust)
+leveneTest(cert ~ group, data = data, center = median)
+
+# For bid = 3
+data_bid3 <- subset(data, bid == 3)
+
+# Pairwise F-tests
+pairwise_var <- function(var1, var2) {
+  var.test(var1, var2)$p.value
+}
+
+treatments <- c(1,2,3)
+p_vals <- c()
+k <- 1
+for (i in 1:2) {
+  for (j in (i+1):3) {
+    group1 <- data_bid3$cert[data_bid3$treatment == i]
+    group2 <- data_bid3$cert[data_bid3$treatment == j]
+    p_vals[k] <- var.test(group1, group2)$p.value
+    k <- k+1
+  }
+}
+p_adj <- p.adjust(p_vals, method = "bonferroni")
+p_adj
+
+# For bid = 8
+data_bid8 <- subset(data, bid == 8)
+
+# Pairwise F-tests
+pairwise_var <- function(var1, var2) {
+  var.test(var1, var2)$p.value
+}
+
+treatments <- c(1,2,3)
+p_vals <- c()
+k <- 1
+for (i in 1:2) {
+  for (j in (i+1):3) {
+    group1 <- data_bid8$cert[data_bid8$treatment == i]
+    group2 <- data_bid8$cert[data_bid8$treatment == j]
+    p_vals[k] <- var.test(group1, group2)$p.value
+    k <- k+1
+  }
+}
+p_adj <- p.adjust(p_vals, method = "bonferroni")
+p_adj
+
+## For all
+treatments <- c(1,2,3)
+p_vals <- c()
+k <- 1
+for (i in 1:2) {
+  for (j in (i+1):3) {
+    group1 <- data$cert[data$treatment == i]
+    group2 <- data$cert[data$treatment == j]
+    p_vals[k] <- var.test(group1, group2)$p.value
+    k <- k+1
+  }
+}
+p_adj <- p.adjust(p_vals, method = "bonferroni")
+p_adj
+
+
+
+#####################################
+## Effect size
+#####################################
+## Pooled
+
+R_vs_H <- subset(data, treatment %in% c(1, 3))
+R_vs_H$treatment <- droplevels(R_vs_H$treatment)
+cohen.d(cert ~ treatment, data = R_vs_H)
+
+R_vs_C <- subset(data, treatment %in% c(2, 3))
+R_vs_C$treatment <- droplevels(R_vs_C$treatment)
+cohen.d(cert ~ treatment, data = R_vs_C)
+
+## 3
+
+R_vs_H_3 <- subset(data, treatment %in% c(1, 3)& bid == 3)
+R_vs_H_3$treatment <- droplevels(R_vs_H_3$treatment)
+cohen.d(cert ~ treatment, data = R_vs_H_3)
+
+R_vs_C_3 <- subset(data, treatment %in% c(2, 3)& bid == 3)
+R_vs_C_3$treatment <- droplevels(R_vs_C_3$treatment)
+cohen.d(cert ~ treatment, data = R_vs_C_3)
+
+## 8
+
+R_vs_H_8 <- subset(data, treatment %in% c(1, 3)& bid == 8)
+R_vs_H_8$treatment <- droplevels(R_vs_H_8$treatment)
+cohen.d(cert ~ treatment, data = R_vs_H_8)
+
+R_vs_C_8 <- subset(data, treatment %in% c(2, 3)& bid == 8)
+R_vs_C_8$treatment <- droplevels(R_vs_C_8$treatment)
+cohen.d(cert ~ treatment, data = R_vs_C_8)
+
+```
+
+
+## Table 7: Transformations due certaintiy
+
+```{r}
+
+# Convert treatment to labelled factor (optional)
+data <- data %>%
+  mutate(treatment = factor(treatment, levels = c(1,2,3),
+                            labels = c("Real", "Consequential", "Hypothetical")))
+data8 <- subset(data, bid==8)
+data3 <- subset(data, bid==3) # Change depending the desired bid grup
+
+# Function to apply recoding rules
+# rule: "eq2" = recode against (0) to in favor (1) when cert <= Ci
+#       "eq3" = recode in favor (1) to against (0) when cert <= Ci
+recode_vote <- function(vote, cert, Ci, rule) {
+  if (rule == "eq2") {
+    # If vote == 0 (against) and certainty <= Ci, change to 1 (in favor)
+    ifelse(vote == 0 & cert <= Ci, 1, vote)
+  } else if (rule == "eq3") {
+    # If vote == 1 (in favor) and certainty <= Ci, change to 0 (against)
+    ifelse(vote == 1 & cert <= Ci, 0, vote)
+  } else {
+    vote
+  }
+}
+
+# Thresholds to test
+ci_thresholds <- c(5, 6, 7, 8)
+
+# Helper function to compute percentages for one rule and one threshold
+get_percent <- function(data, rule, Ci) {
+  data %>%
+    mutate(vote_corrected = recode_vote(i_vote, cert, Ci, rule)) %>%
+    group_by(treatment) %>%
+    summarise(
+      prop = mean(vote_corrected, na.rm = TRUE) * 100,
+      .groups = "drop"
+    )
+}
+
+# Original percentages (no correction)
+orig_perc <- data8 %>%
+  group_by(treatment) %>%
+  summarise(orig = mean(i_vote, na.rm = TRUE) * 100, .groups = "drop")
+orig_perc
+
+# Compute percentages for Eq.2 (recoding against -> in favor)
+eq2_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data8, "eq2", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols()
+eq2_results
+
+# Compute percentages for Eq.3 (recoding in favor -> against)
+eq3_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data8, "eq3", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols() 
+eq3_results
+
+
+
+```
+
+## Table 8: Change vote regression
+
+
+```{r}
+
+model_1 <- glm(ch_vote ~cert, 
+               data = data, 
+               family = binomial(link = "logit"))
+summary(model_1)
+AIC(model_1)
+BIC(model_1)
+logLik(model_1)
+nobs(model_1)
+
+
+model_2 <- glm(ch_vote ~cert+female+year+employed+eco_fin+volunteer, 
+               data = data, 
+               family = binomial(link = "logit"))
+summary(model_2)
+AIC(model_2)
+BIC(model_2)
+logLik(model_2)
+nobs(model_2)
+
+model_4 <- glm(ch_vote ~cert, 
+               data = data8, 
+               family = binomial(link = "logit"))
+summary(model_4)
+AIC(model_4)
+BIC(model_4)
+logLik(model_4)
+nobs(model_4)
+
+
+model_3 <- glm(ch_vote ~cert+female+year+employed+eco_fin+volunteer, 
+               data = data8, 
+               family = binomial(link = "logit"))
+summary(model_3)
+AIC(model_3)
+BIC(model_3)
+logLik(model_3)
+nobs(model_3)
+
+model_5 <- glm(ch_vote ~cert, 
+               data = data3, 
+               family = binomial(link = "logit"))
+summary(model_5)
+AIC(model_5)
+BIC(model_5)
+logLik(model_5)
+nobs(model_5)
+
+
+model_6 <- glm(ch_vote ~cert+female+year+employed+eco_fin+volunteer, 
+               data = data3, 
+               family = binomial(link = "logit"))
+summary(model_6)
+AIC(model_6)
+BIC(model_6)
+logLik(model_6)
+nobs(model_6)
+
+
+
+```
+
+
+## SUPPLEMENTARY TABLES
+## Table B1: Power analysis Lloyd-Smith and Adamowicz (2018) 
+
+```{r}
+
+## Sample power
+# Power in (Lloyd-Smith and Adamowicz (2018)) Real - Hypothetical
+d1=(0.694-0.468)/0.5 # Effect found in previous paper (Lloyd-Smith and Adamowicz (2018))
+wp.t(n1=79, n2=62, d=d1, power=NULL, type='two.sample.2n') # Power in paper
+
+# Power in (Lloyd-Smith and Adamowicz (2018)) Consequential - Hypothetical
+d2=(0.639-0.468)/0.5 # Effect found in previous paper (Lloyd-Smith and Adamowicz (2018))
+wp.t(n1=79, n2=61, d=d2, power=NULL, type='two.sample.2n') # Power in paper
+
+
+data_matrix_2018 <- matrix(c(43, 19,   # Real: In Favor, Against total: 62 participants
+                         39, 22,   # Consequential: In Favor, Against total: 61 participants
+                         37, 42),  # Hypothetical: In Favor, Against total: 79 participants
+                       nrow = 3,   # Number of rows (scenarios)
+                       byrow = TRUE) # Fill the matrix by row
+contingency_table_2018 <- as.table(data_matrix_2018)
+chi_square_result_2018 <- chisq.test(contingency_table_2018, correct = FALSE) # correct=FALSE for no Yates' correction
+V = sqrt( chi_square_result_2018$statistic / (202* (2 - 1)) )
+
+
+```
+
+## Table B3: Complementary 1: Equivalence testing
+```{r}
+
+
+# Real vs H test pooled
+R_vs_H <- subset(data, treatment %in% c(1, 3))
+
+# TOST independent samples t-test
+# low_eqbound_d = -0.2, high_eqbound_d = 0.2 (negligible range)
+TOSTtwo(
+  m1 = mean(R_vs_H$i_vote[R_vs_H$treatment == 1]),
+  m2 = mean(R_vs_H$i_vote[R_vs_H$treatment == 3]),
+  sd1 = sd(R_vs_H$i_vote[R_vs_H$treatment == 1]),
+  sd2 = sd(R_vs_H$i_vote[R_vs_H$treatment == 3]),
+  n1 = sum(R_vs_H$treatment == 1),
+  n2 = sum(R_vs_H$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+
+# Real vs C test pooled
+R_vs_C <- subset(data, treatment %in% c(2, 3))
+
+# TOST independent samples t-test
+# low_eqbound_d = -0.2, high_eqbound_d = 0.2 (negligible range)
+TOSTtwo(
+  m1 = mean(R_vs_C$i_vote[R_vs_C$treatment == 2]),
+  m2 = mean(R_vs_C$i_vote[R_vs_C$treatment == 3]),
+  sd1 = sd(R_vs_C$i_vote[R_vs_C$treatment == 2]),
+  sd2 = sd(R_vs_C$i_vote[R_vs_C$treatment == 3]),
+  n1 = sum(R_vs_C$treatment == 2),
+  n2 = sum(R_vs_C$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+
+
+
+# Real v H 3
+R_vs_H_3 <- subset(data, treatment %in% c(1, 3) & bid == 3)
+
+# TOST independent samples t-test
+# low_eqbound_d = -0.2, high_eqbound_d = 0.2 (negligible range)
+# alpha = 0.05 (or adjust for multiple comparisons)
+TOSTtwo(
+  m1 = mean(R_vs_H_3$i_vote[R_vs_H_3$treatment == 1]),
+  m2 = mean(R_vs_H_3$i_vote[R_vs_H_3$treatment == 3]),
+  sd1 = sd(R_vs_H_3$i_vote[R_vs_H_3$treatment == 1]),
+  sd2 = sd(R_vs_H_3$i_vote[R_vs_H_3$treatment == 3]),
+  n1 = sum(R_vs_H_3$treatment == 1),
+  n2 = sum(R_vs_H_3$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+# Real v C 3
+R_vs_C_3 <- subset(data, treatment %in% c(2, 3) & bid == 3)
+
+# TOST independent samples t-test
+TOSTtwo(
+  m1 = mean(R_vs_C_3$i_vote[R_vs_C_3$treatment == 2]),
+  m2 = mean(R_vs_C_3$i_vote[R_vs_C_3$treatment == 3]),
+  sd1 = sd(R_vs_C_3$i_vote[R_vs_C_3$treatment == 2]),
+  sd2 = sd(R_vs_C_3$i_vote[R_vs_C_3$treatment == 3]),
+  n1 = sum(R_vs_C_3$treatment == 2),
+  n2 = sum(R_vs_C_3$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+
+# Real vs H bid 8
+R_vs_H_8 <- subset(data, treatment %in% c(1, 3) & bid == 8)
+
+# TOST independent samples t-test
+# low_eqbound_d = -0.2, high_eqbound_d = 0.2 (negligible range)
+# alpha = 0.05 (or adjust for multiple comparisons)
+TOSTtwo(
+  m1 = mean(R_vs_H_8$i_vote[R_vs_H_8$treatment == 1]),
+  m2 = mean(R_vs_H_8$i_vote[R_vs_H_8$treatment == 3]),
+  sd1 = sd(R_vs_H_8$i_vote[R_vs_H_8$treatment == 1]),
+  sd2 = sd(R_vs_H_8$i_vote[R_vs_H_8$treatment == 3]),
+  n1 = sum(R_vs_H_8$treatment == 1),
+  n2 = sum(R_vs_H_8$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+# Real vs C bid 8
+R_vs_C_8 <- subset(data, treatment %in% c(2, 3) & bid == 8)
+
+# TOST independent samples t-test
+TOSTtwo(
+  m1 = mean(R_vs_C_8$i_vote[R_vs_C_8$treatment == 2]),
+  m2 = mean(R_vs_C_8$i_vote[R_vs_C_8$treatment == 3]),
+  sd1 = sd(R_vs_C_8$i_vote[R_vs_C_8$treatment == 2]),
+  sd2 = sd(R_vs_C_8$i_vote[R_vs_C_8$treatment == 3]),
+  n1 = sum(R_vs_C_8$treatment == 2),
+  n2 = sum(R_vs_C_8$treatment == 3),
+  low_eqbound_d = -0.3,
+  high_eqbound_d = 0.3,
+  alpha = 0.05
+)
+
+```
+
+
+
+## Table B4: Complementary 1: Bayesian
+```{r}
+
+R_vs_H <- subset(data, treatment %in% c(1, 3))
+R_vs_H$treatment <- droplevels(R_vs_H$treatment)
+
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_H,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+
+R_vs_C <- subset(data, treatment %in% c(2, 3))
+R_vs_C$treatment <- droplevels(R_vs_C$treatment)
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_C,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+## 3
+
+R_vs_H_3 <- subset(data, treatment %in% c(1, 3)& bid == 3)
+R_vs_H_3$treatment <- droplevels(R_vs_H_3$treatment)
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_H_3,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+R_vs_C_3 <- subset(data, treatment %in% c(2, 3)& bid == 3)
+R_vs_C_3$treatment <- droplevels(R_vs_C_3$treatment)
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_C_3,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+
+## 8
+
+R_vs_H_8 <- subset(data, treatment %in% c(1, 3)& bid == 8)
+R_vs_H_8$treatment <- droplevels(R_vs_H_8$treatment)
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_H_8,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+R_vs_C_8 <- subset(data, treatment %in% c(2, 3)& bid == 8)
+R_vs_C_8$treatment <- droplevels(R_vs_C_8$treatment)
+bf_interval <- ttestBF(
+  formula = i_vote ~ treatment,
+  data = R_vs_C_8,
+  nullInterval = c(-0.3, 0.3) # Your pre-defined bounds from TOST
+)
+bf_interval
+bf_ratio <- bf_interval[1] / bf_interval[2]
+bf_ratio
+
+
+
+
+
+```
+
+## Table B5: Treatment effect regression
+
+```{r}
+R_vs_H_3 <- subset(data, treatment %in% c(1, 3)&bid == 3)
+R_vs_C_3 <- subset(data, treatment %in% c(1, 2)&bid == 3)
+data_3 <- subset(data, bid == 3)
+
+model_1 <- glm(i_vote ~hypo+female+year+employed+eco_fin+volunteer, 
+               data = R_vs_H_3, 
+               family = binomial(link = "logit"))
+summary(model_1)
+AIC(model_1)
+BIC(model_1)
+logLik(model_1)
+nobs(model_1)
+
+
+model_2  <- glm(i_vote ~ conq+female+year+employed+eco_fin+volunteer, 
+               data = R_vs_C_3, 
+               family = binomial(link = "logit"))
+summary(model_2)
+AIC(model_2)
+BIC(model_2)
+logLik(model_2)
+nobs(model_2)
+
+model_3 <- glm(i_vote ~hypo+conq+female+year+employed+eco_fin+volunteer, 
+               data = data_3, 
+               family = binomial(link = "logit"))
+summary(model_3)
+AIC(model_3)
+BIC(model_3)
+logLik(model_3)
+nobs(model_3)
+
+###############
+
+R_vs_H_8 <- subset(data, treatment %in% c(1, 3)&bid == 8)
+R_vs_C_8 <- subset(data, treatment %in% c(1, 2)&bid == 8)
+data_8 <- subset(data, bid == 8)
+
+model_1 <- glm(i_vote ~hypo+female+year+employed+eco_fin+volunteer, 
+               data = R_vs_H_8, 
+               family = binomial(link = "logit"))
+summary(model_1)
+AIC(model_1)
+BIC(model_1)
+logLik(model_1)
+nobs(model_1)
+
+model_2  <- glm(i_vote ~ conq+female+year+employed+eco_fin+volunteer, 
+               data = R_vs_C_8, 
+               family = binomial(link = "logit"))
+summary(model_2)
+AIC(model_2)
+BIC(model_2)
+logLik(model_2)
+nobs(model_2)
+
+model_3 <- glm(i_vote ~hypo+conq+female+year+employed+eco_fin+volunteer, 
+               data = data_8, 
+               family = binomial(link = "logit"))
+summary(model_3)
+AIC(model_3)
+BIC(model_3)
+logLik(model_3)
+nobs(model_3)
+
+
+```
+
+
+
+
+## Table B6-: Certainty correction
+
+
+```{r}
+# Run Table 7 first
+
+### 3% Bid
+# Original percentages (no correction)
+orig_perc <- data3 %>%
+  group_by(treatment) %>%
+  summarise(orig = mean(i_vote, na.rm = TRUE) * 100, .groups = "drop")
+orig_perc
+
+# Compute percentages for Eq.2 (recoding against -> in favor)
+eq2_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data8, "eq2", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols()
+eq2_results
+
+# Compute percentages for Eq.3 (recoding in favor -> against)
+eq3_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data8, "eq3", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols() 
+eq3_results
+
+### Full sample
+# Original percentages (no correction)
+orig_perc <- data %>%
+  group_by(treatment) %>%
+  summarise(orig = mean(i_vote, na.rm = TRUE) * 100, .groups = "drop")
+orig_perc
+
+# Compute percentages for Eq.2 (recoding against -> in favor)
+eq2_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data, "eq2", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols()
+eq2_results
+
+# Compute percentages for Eq.3 (recoding in favor -> against)
+eq3_results <- lapply(ci_thresholds, function(Ci) {
+  get_percent(data, "eq3", Ci) %>%
+    rename(!!paste0("Ci<=", Ci) := prop)
+}) %>% bind_cols() 
+eq3_results
+
+```
